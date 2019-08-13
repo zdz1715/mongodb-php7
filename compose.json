@@ -1,0 +1,19 @@
+{
+  "name": "zdz/mongodb-php7",
+  "description": "mongodb,php7",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "zdz",
+      "email": "zdzserver@163.com"
+    }
+  ],
+  "require": {
+    "php": ">=7.1"
+  },
+  "autoload":{
+    "psr-4": {
+      "MongodbPhp7\\": "src/"
+    }
+  }
+}
