@@ -9,8 +9,11 @@ use MongoDB\Driver\Query;
 
 class db
 {
-    protected $fieldShow = 1;
-    protected $fieldHidden = 0;
+    const FIELD_SHOW = 1;
+    const FIELD_HIDDEN = 0;
+
+    const SORT_ASC = 1;
+    const SORT_DESC = -1;
 
     /**
      * @var MongoDB\Driver\Manager
@@ -19,7 +22,7 @@ class db
 
     protected $host;
     protected $port;
-    protected $option;
+    protected $managerOption;
     protected $database = '';
 
     protected $collection;
@@ -32,8 +35,14 @@ class db
      */
     protected $cursor;
 
-    protected $where;
-    protected $field;
+    protected $pk = '_id';
+
+    protected $lastSql;
+    /**
+     * 当前查询参数
+     * @var array
+     */
+    protected $options = [];
 
     /**
      * db constructor.
@@ -46,7 +55,7 @@ class db
     {
         $this->host = $host;
         $this->port = $port;
-        $this->option = $option;
+        $this->managerOption = $option;
 
         if ($database != '') {
             $this->setDataBase($database);
@@ -68,6 +77,9 @@ class db
      * @return $this
      */
     public function collection($collection) {
+        // 防止依赖注入保留查询参数
+        $this->removeOption(true);
+
         $this->collection = $this->parseCollectionName($collection);
         return $this;
     }
@@ -77,26 +89,47 @@ class db
      * @return $this
      */
     public function where($where) {
-        $this->where = $where;
+        $this->options['where'] = $where;
         return $this;
     }
 
     /**
-     * @param $field
+     * todo 暂时没找到实现方法
+     * @return mixed
+     */
+    private function getLastSql() {
+        return $this->lastSql;
+    }
+
+    /**
+     * @param $project
      * @return $this
      */
-    public function field($field) {
-        $this->field = [
-            '_id'   => $this->fieldHidden
+    public function project($project) {
+        $this->options['project'] = [
+            $this->pk   => self::FIELD_HIDDEN
         ];
-        if (is_string($field)) {
-            $field = explode(',', $field);
+        if (is_string($project)) {
+            $project = explode(',', $project);
         }
-        if (is_array($field)) {
-            foreach ($field as $f) {
-                $this->field[$f] = $this->fieldShow;
+        if (is_array($project)) {
+            foreach ($project as $k => $p) {
+                if (is_array($p)) {
+                    $this->options['project'][$k] = $p;
+                } else {
+                    $this->options['project'][$p] = self::FIELD_SHOW;
+                }
             }
         }
+        return $this;
+    }
+
+    /**
+     * @param $sort
+     * @return $this
+     */
+    public function sort($sort) {
+        $this->options['sort'] = $sort;
         return $this;
     }
 
@@ -108,7 +141,7 @@ class db
             throw new InvalidArgumentException('Undefined db host');
         }
 
-        self::$manager = new Manager("mongodb://{$this->host}:{$this->port}", $this->option);
+        self::$manager = new Manager("mongodb://{$this->host}:{$this->port}", $this->managerOption);
     }
 
 
@@ -174,8 +207,9 @@ class db
      */
     public function update($document, $multi = true, $upsert = false, $where = []) {
         $bulk = $this->createBulkObject();
-        $where = array_merge($this->where, $where);
-        $bulk->update($this->where, $document, [
+        $optionsWhere = $this->options['where'] ?? [];
+        $where = array_merge($optionsWhere, $where);
+        $bulk->update($where, $document, [
             'multi'     => $multi,
             'upsert'    => $upsert
         ]);
@@ -214,58 +248,112 @@ class db
     }
 
 
+    /**
+     * 去除查询参数
+     * @access public
+     * @param  string|bool $option 参数名 true 表示去除所有参数
+     * @return $this
+     */
+    public function removeOption($option = true)
+    {
+        if (true === $option) {
+            $this->options = [];
+        } elseif (is_string($option) && isset($this->options[$option])) {
+            unset($this->options[$option]);
+        }
 
+        return $this;
+    }
+
+    /**
+     * 解析管道操作
+     * @return array
+     */
     public function parseAggregate() {
         list($database, $collection) = explode('.', $this->collection);
-        $aggregate = [
-            'aggregate' => $collection
-        ];
         $pipeline = [];
-        if ($this->field) {
-            $pipeline[]['$project'] = $this->field;
+        $project = $this->options['project'] ?? [];
+        $sort = $this->options['sort'] ?? [];
+        $where = $this->options['where'] ?? [];
+
+        if (!empty($where)) {
+            $pipeline[]['$match'] = $where;
         }
-        $aggregate['pipeline'] = $pipeline;
-        $aggregate['cursor'] = new \stdClass();
+
+        if (!empty($project)) {
+            $pipeline[]['$project'] = $project;
+        }
+
+        if (!empty($sort)) {
+            $pipeline[]['$sort'] = $sort;
+        }
+
+
+
+        $query = [
+            'aggregate' => $collection,
+            'pipeline'  => $pipeline,
+            'cursor'    => new \stdClass()
+        ];
         return [
-            'aggregate' => $aggregate,
+            'query' => $query,
             'database' => $database
         ];
     }
 
 
+
+
+
     /**
-     * @return \MongoDB\Driver\Cursor
-     * @throws \MongoDB\Driver\Exception\Exception
+     * @return mixed
      */
     public function select() {
        return $this->executeCommand($this->parseAggregate());
     }
 
+    public function setInc($field, $num = 1) {
+
+    }
+
+    public function setDec($field, $num = 1) {
+
+    }
+
 
     /**
-     * @param $command
+     * @param $query
      * @param array $option
-     * @return \MongoDB\Driver\Cursor
-     * @throws \MongoDB\Driver\Exception\Exception
+     * @return mixed
      */
     private function executeCommand($query, $option = []) {
-        $command = $query['aggregate'] ?? [];
+        $command = $query['query'] ?? [];
         $database = $query['database'] ?? '';
         if ($database == '') {
             throw new InvalidArgumentException('Undefined db database');
         }
         $command = new Command($command);
-        $this->cursor = self::$manager->executeCommand($database, $command, $option);
+        try {
+            $this->cursor = self::$manager->executeCommand($database, $command, $option);
+        } catch (\MongoDB\Driver\Exception\Exception $e) {
+            throw new \MongoDB\Driver\Exception\LogicException($e->getMessage());
+        }
         return json_decode(json_encode($this->cursor->toArray()), true);
     }
 
-
+    /**
+     * @param $bulk
+     * @param string $w
+     * @param int $timeout
+     * @return bool
+     */
     private function executeBulkWrite($bulk, $w = WriteConcern::MAJORITY, $timeout = 1000) {
         if ($this->collection == '') {
             throw new InvalidArgumentException('Undefined db collection');
         }
 
         $writeConcern = new WriteConcern($w, $timeout);
+        var_dump($bulk);
         $this->writeResult = self::$manager->executeBulkWrite($this->collection, $bulk, $writeConcern);
         return $this->writeResult->isAcknowledged();
     }
@@ -301,6 +389,8 @@ class db
     public function getWriteResult() {
         return $this->writeResult;
     }
+
+    public function __destruct() {}
 }
 
 
