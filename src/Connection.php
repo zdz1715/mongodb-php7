@@ -1,19 +1,24 @@
 <?php
 namespace MongodbPhp7;
 
-require_once 'Query.php';
-
 use MongoDB\BSON\ObjectId;
+use MongoDB\Driver\Command;
 use MongoDB\Driver\Manager;
 use MongoDB\Driver\BulkWrite;
+use MongoDB\Driver\ReadPreference;
 use MongoDB\Driver\WriteConcern;
 use MongoDB\Driver\WriteResult;
+use MongoDB\Driver\Cursor;
 
 use MongodbPhp7\exception\MongoException;
 use MongodbPhp7\Query;
 
 class Connection
 {
+    const SORT_ASC = 1;
+    const SORT_DESC = -1;
+
+
     // 实例对象
     protected static $instance = [];
 
@@ -35,15 +40,6 @@ class Connection
      */
     protected $query;
 
-    /**
-     * @var string
-     */
-    protected $database = '';
-
-    /**
-     * @var string
-     */
-    protected $pk = '';
 
     /**
      * 连接
@@ -61,6 +57,11 @@ class Connection
      */
     protected $writeResult;
 
+    /**
+     * @var Cursor
+     */
+    protected $cursor;
+
     // 查询参数
     protected $options = [];
 
@@ -68,6 +69,12 @@ class Connection
      * @var WriteConcern|null $writeConcern
      */
     protected $writeConcern = null;
+
+
+    /**
+     * @var ReadPreference|null $readPreference
+     */
+    protected $readPreference = null;
 
     /**
      * 影响的行数
@@ -94,19 +101,17 @@ class Connection
         'dsn'               => '',
         // MongoDB\Driver\Manager option参数
         'option'            => [],
-        // MongoDB\Driver\WriteConcern 配置
-        'write_concern'     => [],
-        // 主键名
+        // 主键字段，会处理成objectID类型
         'pk'                => '_id',
-        // 主键类型
-        'pk_type'           => 'ObjectID',
         // 数据库表前缀
         'prefix'            => '',
-        // 开启debug
-        'debug'             => true
+        // 查询类型
+        'type_map'          => ['root' => 'array', 'document' => 'array'],
+        // 开启debug 支持: 记录最后一条指令
+        'debug'             => true,
+        // 默认分页一页数量
+        'rows_limit'        => 10
     ];
-
-
 
 
     /**
@@ -135,6 +140,8 @@ class Connection
      */
     public function close() {
         $this->manager = null;
+        $this->writeResult = null;
+        $this->cursor = null;
     }
 
 
@@ -160,6 +167,15 @@ class Connection
      */
     public function setWriteConcern($w, $timeout = 1000, $journal = false) {
         $this->writeConcern = new WriteConcern($w, $timeout, $journal);
+    }
+
+
+    /**
+     * @param $mode
+     * @param array $tagSets
+     */
+    public function setReadPreference($mode, array $tagSets = []) {
+        $this->readPreference = new ReadPreference($mode, $tagSets);
     }
 
     /**
@@ -192,6 +208,7 @@ class Connection
     }
 
 
+
     /**
      * 生成连接对象
      * @param array $config
@@ -200,9 +217,6 @@ class Connection
      */
     public function connect(array $config = [], $linkNum = 0) {
         $config = $this->initConfig($config);
-
-        $this->database =  $config['database'];
-        $this->pk = $config['pk'];
 
         if (empty($config['dsn'])) {
             $username = $config['username'] ? $config['username'] : '';
@@ -226,17 +240,36 @@ class Connection
 
 
     /**
+     * @return WriteResult
+     */
+    public function getWriteResult() {
+        return $this->writeResult;
+    }
+
+
+    /**
+     * @return Cursor
+     */
+    public function getCursor() {
+        return $this->cursor;
+    }
+
+    /**
      * @param $collection
      * @return \MongodbPhp7\Query
      */
     public function collection($collection) {
         if (strpos($collection, '.') === false) {
-            $this->namespace =  $this->database. '.' . $this->config['prefix'] . $collection;
+            $this->namespace =  $this->config['database']. '.' . $this->config['prefix'] . $collection;
         } else {
             $this->namespace = $collection;
         }
+        // 删除残留的options
+        $this->query->removeOption();
         return $this->query;
     }
+
+
 
     /**
      * @param bool $explode
@@ -273,10 +306,30 @@ class Connection
             $writeConcern = $this->writeConcern;
         }
         $this->writeResult = $this->manager->executeBulkWrite($namespace, $bulk, $writeConcern);
-
         $this->numRows = $this->writeResult->getMatchedCount();
+
         return $this->writeResult;
     }
+
+    /**
+     * 执行命令
+     * @param Command $command
+     * @param string $dbName
+     * @param ReadPreference|null $readPreference
+     * @return Cursor
+     * @throws \MongoDB\Driver\Exception\Exception
+     */
+    public function command(Command $command, $dbName = '', ReadPreference $readPreference = null) {
+        if (is_null($readPreference)) {
+            $readPreference = $this->readPreference;
+        }
+
+        $this->cursor = $this->manager->executeCommand($dbName, $command, $readPreference);
+
+        return $this->cursor;
+    }
+
+
 
     /**
      * @param $type
@@ -287,7 +340,6 @@ class Connection
         if (!$this->config['debug']) {
             return;
         }
-
 
         switch (strtolower($type)) {
             case 'aggregate':
@@ -312,10 +364,15 @@ class Connection
                 break;
             case 'insert':
             case 'remove':
-                $this->queryStr = $type . '(' . ($data ? json_encode($data) : '') . ');';
+                $where = json_encode($data ?? []);
+                $delOption = json_encode($options);
+                $this->queryStr = $type . '(' . implode(',', [$where, $delOption]) . ');';
                 break;
             case 'update':
-                $this->queryStr = $type . '(' . json_encode($options) . ',' . json_encode($data) . ');';
+                $where = json_encode($options['where'] ?? []);
+                $update = json_encode($data);
+                $upSet = json_encode($options['up_set'] ?? []);
+                $this->queryStr = $type . '(' . implode(',', [$where, $update, $upSet]) . ');';
                 break;
             case 'cmd':
                 $this->queryStr = $data . '(' . json_encode($options) . ');';
