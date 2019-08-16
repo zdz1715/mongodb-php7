@@ -330,6 +330,37 @@ class Connection
     }
 
 
+    /**
+     * @param string $field
+     * @return mixed
+     * @throws \MongoDB\Driver\Exception\Exception
+     */
+    public function getBuildInfo($field = '') {
+        $command = new Command([
+            'buildInfo'  => true
+        ]);
+        $info =  $this->command($command, $this->getConfig('database'));
+        $result = $this->getResult($info)[0];
+        return $field ? $result[$field] : $result;
+    }
+
+    /**
+     * @param Cursor $cursor
+     * @return array
+     */
+    public function getResult(Cursor $cursor) {
+        $cursor->setTypeMap($this->getConfig('type_map'));
+        $result =  $cursor->toArray();
+        return $result;
+    }
+
+    /**
+     * @return mixed
+     * @throws \MongoDB\Driver\Exception\Exception
+     */
+    public function getVersion() {
+        return $this->getBuildInfo('version');
+    }
 
     /**
      * @param $type
