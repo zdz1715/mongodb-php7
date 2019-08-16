@@ -11,7 +11,6 @@ use MongoDB\Driver\WriteResult;
 
 use MongodbPhp7\exception\QueryException;
 use MongodbPhp7\Connection;
-use mysql_xdevapi\Exception;
 
 class Query
 {
@@ -393,9 +392,11 @@ class Query
         return $sort;
     }
 
+
     /**
      * 解析管道操作
      * @return array
+     * @throws \MongoDB\Driver\Exception\Exception
      */
     protected function parseAggregate() {
         list($database, $collection) = $this->connection->getCollection(true);
@@ -406,6 +407,7 @@ class Query
         $limit = $this->options['limit'] ?? 0;
         $group = $this->options['group'] ?? [];
         $skip = $this->options['skip'] ?? 0;
+        $count = $this->options['count'] ?? false;
 
         if (!empty($where)) {
             $pipeline[]['$match'] = $where;
@@ -432,7 +434,18 @@ class Query
             $pipeline[]['$project'] = $project;
         }
 
-
+        if ($count) {
+            if ($this->connection->getVersion() >= '3.4') {
+                $pipeline[]['$count'] = $count;
+            } else {
+                $pipeline[]['$group'] = [
+                    '_id'   => null,
+                    $count  => [
+                        '$sum'  => 1
+                    ]
+                ];
+            }
+        }
 
         $query = [
             'aggregate' => $collection,
@@ -495,11 +508,8 @@ class Query
      * @throws \MongoDB\Driver\Exception\Exception
      */
     public function count() {
-        $this->group([
-            '_id'   => null,
-            'cols'  => ['$sum' => 1]
-        ]);
-        $count = $this->value('cols');
+        $this->setOption('count', '__cols__');
+        $count = $this->column('__cols__')[0];
         return $count;
     }
 
@@ -545,19 +555,10 @@ class Query
 
         $this->log('aggregate', $originCommand);
 
-        return $this->getResult($cursor);
+        return $this->connection->getResult($cursor);
 
     }
 
-    /**
-     * @param Cursor $cursor
-     * @return array
-     */
-    protected function getResult(Cursor $cursor) {
-        $cursor->setTypeMap($this->connection->getConfig('type_map'));
-        $result =  $cursor->toArray();
-        return $result;
-    }
 
     /**
      * @param $dataSet
