@@ -290,7 +290,6 @@ class Connection
      * @return mixed
      */
     public function getLastInsertID() {
-        $this->query->getLastInsID();
         return $this->query->getLastInsID();
     }
 

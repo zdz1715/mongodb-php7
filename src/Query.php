@@ -594,15 +594,15 @@ class Query
     public function getLastInsID()
     {
         $id = $this->insertId;
-        if (is_array($id)) {
-            array_walk($id, function (&$item, $key) {
-                if ($item instanceof ObjectID) {
-                    $item = $item->__toString();
-                }
-            });
-        } elseif ($id instanceof ObjectID) {
-            $id = $id->__toString();
-        }
+//        if (is_array($id)) {
+//            array_walk($id, function (&$item, $key) {
+//                if ($item instanceof ObjectID) {
+//                    $item = $item->__toString();
+//                }
+//            });
+//        } elseif ($id instanceof ObjectID) {
+//            $id = $id->__toString();
+//        }
         return $id;
     }
 
