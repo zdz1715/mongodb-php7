@@ -82,6 +82,7 @@ class Connection
      */
     public $numRows;
 
+
     /**
      * 连接配置
      * @var array
@@ -101,7 +102,7 @@ class Connection
         'dsn'               => '',
         // MongoDB\Driver\Manager option参数
         'option'            => [],
-        // 主键字段，会处理成objectID类型
+        // 主键字段
         'pk'                => '_id',
         // 数据库表前缀
         'prefix'            => '',
@@ -343,6 +344,14 @@ class Connection
         return $field ? $result[$field] : $result;
     }
 
+    protected function allowPkConvertString($name = 'field') {
+        $field = $this->getQueryOptions($name);
+        if (empty($field)) {
+            return true;
+        }
+        return array_key_exists($this->getConfig('pk'), array_filter($field));
+    }
+
     /**
      * @param Cursor $cursor
      * @return array
@@ -350,7 +359,26 @@ class Connection
     public function getResult(Cursor $cursor) {
         $cursor->setTypeMap($this->getConfig('type_map'));
         $result =  $cursor->toArray();
+        $pk = $this->getConfig('pk');
+        if ($this->getQueryOptions('pk_convert_string')
+            && $this->checkPkExists()) {
+            foreach ($result as &$item) {
+                $item[$pk] = $this->query->pkConvertString($item[$pk]);
+            }
+        }
         return $result;
+    }
+
+
+
+    /**
+     * @param string $name
+     * @param array $default
+     * @return array|mixed
+     */
+    public function getQueryOptions($name = '', $default = [])
+    {
+        return $this->query->getOptions($name, $default);
     }
 
     /**

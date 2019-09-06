@@ -25,9 +25,17 @@ class Query
      */
     protected $connection;
 
+    /**
+     * 默认查询参数
+     * @var array
+     */
+    protected $defaultOptions = [
+        // 查找和更新此主键会转化成对应的形式，如：查找 ：_id = 5d71c5415c998d3dc4006832, 更新: _id 会处理成objectID类型
+        'pk_convert_string' => false
+    ];
 
     /**
-     * 查询参数
+     * 当前查询参数
      * @var array
      */
     protected $options = [];
@@ -72,7 +80,7 @@ class Query
     public function removeOption($option = true)
     {
         if (true === $option) {
-            $this->options = [];
+            $this->options = $this->defaultOptions;
         } elseif (is_string($option) && isset($this->options[$option])) {
             unset($this->options[$option]);
         }
@@ -101,7 +109,7 @@ class Query
      * @return $this
      */
     public function where($where) {
-        return $this->setOption('where', $where);
+        return $this->setOption('where', $this->parseWhere($where));
     }
 
     /**
@@ -114,11 +122,20 @@ class Query
 
 
     /**
+     * @param $bool
+     * @return Query
+     */
+    public function pcs($bool) {
+        return $this->setOption('pk_convert_string', $bool);
+    }
+
+
+    /**
      * @param $sort
      * @return $this
      */
     public function sort($sort) {
-        return $this->setOption('sort', $sort);
+        return $this->setOption('sort', $this->parseSort($sort));
     }
 
 
@@ -136,7 +153,7 @@ class Query
      * @return $this
      */
     public function field($field) {
-        return $this->setOption('field', $field);
+        return $this->setOption('field', $this->parseField($field));
     }
 
     /**
@@ -394,6 +411,23 @@ class Query
 
 
     /**
+     * @param $where
+     * @return array
+     */
+    protected function parseWhere($where) {
+        if (empty($where)) {
+            return [];
+        }
+        $result = [];
+        foreach ($where as $key => $val) {
+            $item = $this->parseKey($key);
+            $result[$item] = $this->parseValue($val, $item);
+        }
+        return $result;
+    }
+
+
+    /**
      * 解析管道操作
      * @return array
      * @throws \MongoDB\Driver\Exception\Exception
@@ -401,13 +435,13 @@ class Query
     protected function parseAggregate() {
         list($database, $collection) = $this->connection->getCollection(true);
         $pipeline = [];
-        $project = $this->parseField($this->options['field'] ?? []);
-        $sort = $this->parseSort($this->options['sort'] ?? []);
-        $where = $this->options['where'] ?? [];
-        $limit = $this->options['limit'] ?? 0;
-        $group = $this->options['group'] ?? [];
-        $skip = $this->options['skip'] ?? 0;
-        $count = $this->options['count'] ?? false;
+        $project = $this->getOptions('field');
+        $sort = $this->getOptions('sort');
+        $where = $this->getOptions('where');
+        $limit = $this->getOptions('limit', 0);
+        $group = $this->getOptions('group');
+        $skip = $this->getOptions('skip', 0);
+        $count = $this->getOptions('count', false);
 
         if (!empty($where)) {
             $pipeline[]['$match'] = $where;
@@ -594,15 +628,43 @@ class Query
     public function getLastInsID()
     {
         $id = $this->insertId;
-//        if (is_array($id)) {
-//            array_walk($id, function (&$item, $key) {
-//                if ($item instanceof ObjectID) {
-//                    $item = $item->__toString();
-//                }
-//            });
-//        } elseif ($id instanceof ObjectID) {
-//            $id = $id->__toString();
-//        }
+        if ($this->getOptions('pk_convert_string')) {
+            $id = $this->pkConvertString($id);
+        }
+        return $id;
+    }
+
+    /**
+     * @param $value
+     * @return array|ObjectId
+     */
+    public function stringConvertPk($value) {
+        if (is_array($value)) {
+            array_walk($value, function (&$item, $key) {
+                if (!($item instanceof ObjectID)) {
+                    $item = new ObjectId($item);
+                }
+            });
+        } elseif (!($value instanceof ObjectID)) {
+            $value = new ObjectId($value);
+        }
+        return $value;
+    }
+
+    /**
+     * @param $id
+     * @return array|string
+     */
+    public function pkConvertString($id) {
+        if (is_array($id)) {
+            array_walk($id, function (&$item, $key) {
+                if ($item instanceof ObjectID) {
+                    $item = $item->__toString();
+                }
+            });
+        } elseif ($id instanceof ObjectID) {
+            $id = $id->__toString();
+        }
         return $id;
     }
 

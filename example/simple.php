@@ -18,7 +18,7 @@ $config = [
     'dsn'               => '',
     // MongoDB\Driver\Manager option参数
     'option'            => [],
-    // 主键字段，会处理成objectID类型
+    // 主键字段
     'pk'                => '_id',
     // 数据库表前缀
     'prefix'            => '',
@@ -38,15 +38,18 @@ $db = Connection::instance($config);
 
 $collection = 'collection_2';
 
+// 新增链式操作,只针对当前语句 pcs(boolean)  默认 false
+// true；查找和更新主键会转化成对应的形式，如：查找 ：_id = 5d71c5415c998d3dc4006832, 更新: _id 会处理成objectID类型
+
 echo '-------------------------------- 插入一条数据 ------------------------------------' . PHP_EOL;
 // 默认返回插入成功的条数, $getLastInsID 为 true, 返回主键
-$insert = $db->collection($collection)->insert([
+$insert = $db->collection($collection)->pcs(true)->insert([
     'name'  => '小明',
     'age'   => 20
 ], false);
-
 echo '插入了'. $insert .'条'. PHP_EOL;
-echo '插入的主键：'. $db->getLastInsertID() . PHP_EOL;
+echo '插入的主键：'. PHP_EOL;
+print_r($db->getLastInsertID());
 echo '执行的语句：'. $db->getLastSql() . PHP_EOL; // 开启debug才会记录
 
 echo '------------------------------- 插入多条数据 -------------------------------------' . PHP_EOL;
@@ -76,16 +79,16 @@ echo '插入的主键数组：'. PHP_EOL;
 print_r($db->getLastInsertID());
 echo '执行的语句：'. $db->getLastSql() . PHP_EOL; // 开启debug才会记录
 
-echo '------------------------------ 更新数据 -----------------------------------' . PHP_EOL;
+//echo '------------------------------ 更新数据 -----------------------------------' . PHP_EOL;
 // where条件没做处理，请参考文档的运算符 https://docs.mongodb.com/manual/reference/operator/query/
 // update 更新运算符参考 https://docs.mongodb.com/manual/reference/operator/update/
 // upsert 默认false, 不存在则创建
 $update = $db->collection($collection)
-    ->where(['name'  => '小明'])
+    ->where(['_id'  => '5d71d7495c998d3f400043e6'])
     ->upsert(false)
-    ->limit(0)
-    ->update(['set'   => 1, 'age'   => ['$inc', 1]]);
-
+    ->limit(1)  //  1 是只更新一条，其他数字都是更新多条，默认更新多条
+    ->update(['set'   => 2, 'age'   => ['$inc', 1]]);
+print_r($db->getQueryOptions());
 echo '修改了'. $update .'条'. PHP_EOL;
 echo '执行的语句：'. $db->getLastSql() . PHP_EOL; // 开启debug才会记录
 
@@ -109,7 +112,7 @@ echo '执行的语句：'. $db->getLastSql() . PHP_EOL; // 开启debug才会记�
 
 
 
-echo '------------------------------ 删除数据 -----------------------------------' . PHP_EOL;
+//echo '------------------------------ 删除数据 -----------------------------------' . PHP_EOL;
 
 $delete = $db->collection($collection)->where([
     'name'  => '大熊'
@@ -118,18 +121,18 @@ $delete = $db->collection($collection)->where([
 echo '删除了'. $delete .'条'. PHP_EOL;
 echo '执行的语句：'. $db->getLastSql() . PHP_EOL; // 开启debug才会记录
 
-echo '------------------------------ 查找数据 -----------------------------------' . PHP_EOL;
+//echo '------------------------------ 查找数据 -----------------------------------' . PHP_EOL;
 $field = '_id,name,age,set';
-
+//
 // 计算两个字段的和 参考 https://docs.mongodb.com/manual/reference/operator/aggregation/project/
-//$field = [
-//    'name',
-//    'age',
-//    'set',
-//    'ageSet'  => [
-//        '$add'  => ['$age', '$set']
-//    ]
-//];
+$field = [
+    'name',
+    'age',
+    'set',
+    'ageSet'  => [
+        '$add'  => ['$age', '$set']
+    ]
+];
 // group ：_id 是强制要求的，要想显示，field中必须要有这个字段, 参考 https://docs.mongodb.com/manual/reference/operator/aggregation/group/
 $select = $db->collection($collection)
     ->field($field)
@@ -150,6 +153,7 @@ $select = $db->collection($collection)->where(['name' => '小明'])->count();
 // 分页
 $select = $db->collection($collection)->where(['name' => '小明'])->sort(['age' => $db::SORT_DESC])->page(2);
 
+print_r($db->getQueryOptions('field'));
 print_r($select);
 echo PHP_EOL;
 echo '执行的语句：'. $db->getLastSql() . PHP_EOL; // 开启debug才会记录
