@@ -361,7 +361,7 @@ class Connection
         $result =  $cursor->toArray();
         $pk = $this->getConfig('pk');
         if ($this->getQueryOptions('pk_convert_string')
-            && $this->checkPkExists()) {
+            && $this->allowPkConvertString()) {
             foreach ($result as &$item) {
                 $item[$pk] = $this->query->pkConvertString($item[$pk]);
             }

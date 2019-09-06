@@ -84,11 +84,10 @@ echo '执行的语句：'. $db->getLastSql() . PHP_EOL; // 开启debug才会记�
 // update 更新运算符参考 https://docs.mongodb.com/manual/reference/operator/update/
 // upsert 默认false, 不存在则创建
 $update = $db->collection($collection)
-    ->where(['_id'  => '5d71d7495c998d3f400043e6'])
+    ->where(['_id'  => '5d71ee675c998d22b0004b92'])
     ->upsert(false)
     ->limit(1)  //  1 是只更新一条，其他数字都是更新多条，默认更新多条
     ->update(['set'   => 2, 'age'   => ['$inc', 1]]);
-print_r($db->getQueryOptions());
 echo '修改了'. $update .'条'. PHP_EOL;
 echo '执行的语句：'. $db->getLastSql() . PHP_EOL; // 开启debug才会记录
 
@@ -151,9 +150,8 @@ $select = $db->collection($collection)->sort(['age' => $db::SORT_DESC])->column(
 $select = $db->collection($collection)->where(['name' => '小明'])->count();
 
 // 分页
-$select = $db->collection($collection)->where(['name' => '小明'])->sort(['age' => $db::SORT_DESC])->page(2);
+$select = $db->collection($collection)->where(['name' => '小明'])->sort(['age' => $db::SORT_DESC])->page(1);
 
-print_r($db->getQueryOptions('field'));
 print_r($select);
 echo PHP_EOL;
 echo '执行的语句：'. $db->getLastSql() . PHP_EOL; // 开启debug才会记录
