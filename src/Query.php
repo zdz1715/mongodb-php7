@@ -634,22 +634,7 @@ class Query
         return $id;
     }
 
-    /**
-     * @param $value
-     * @return array|ObjectId
-     */
-    public function stringConvertPk($value) {
-        if (is_array($value)) {
-            array_walk($value, function (&$item, $key) {
-                if (!($item instanceof ObjectID)) {
-                    $item = new ObjectId($item);
-                }
-            });
-        } elseif (!($value instanceof ObjectID)) {
-            $value = new ObjectId($value);
-        }
-        return $value;
-    }
+
 
     /**
      * @param $id

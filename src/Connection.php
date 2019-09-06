@@ -208,7 +208,22 @@ class Connection
         $this->config[$config] = $value;
     }
 
-
+    /**
+     * @param $value
+     * @return array|ObjectId
+     */
+    public function stringConvertPk($value) {
+        if (is_array($value)) {
+            array_walk($value, function (&$item, $key) {
+                if (is_string($item)) {
+                    $item = new ObjectId($item);
+                }
+            });
+        } elseif (is_string($value)) {
+            $value = new ObjectId($value);
+        }
+        return $value;
+    }
 
     /**
      * 生成连接对象
