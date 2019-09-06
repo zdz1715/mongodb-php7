@@ -25,14 +25,6 @@ class Query
      */
     protected $connection;
 
-    /**
-     * 默认查询参数
-     * @var array
-     */
-    protected $defaultOptions = [
-        // 查找和更新此主键会转化成对应的形式，如：查找 ：_id = 5d71c5415c998d3dc4006832, 更新: _id 会处理成objectID类型
-        'pk_convert_string' => false
-    ];
 
     /**
      * 当前查询参数
@@ -80,7 +72,7 @@ class Query
     public function removeOption($option = true)
     {
         if (true === $option) {
-            $this->options = $this->defaultOptions;
+            $this->options = [];
         } elseif (is_string($option) && isset($this->options[$option])) {
             unset($this->options[$option]);
         }
@@ -99,6 +91,9 @@ class Query
     {
         if ('' === $name) {
             return $this->options;
+        }
+        if ($name === 'pk_convert_string') {
+            return $this->options[$name] ?? $this->getConnectionConfig($name);
         }
         return isset($this->options[$name]) ? $this->options[$name] : $default;
     }
@@ -125,7 +120,7 @@ class Query
      * @param $bool
      * @return Query
      */
-    public function pcs($bool) {
+    public function pcs($bool = true) {
         return $this->setOption('pk_convert_string', $bool);
     }
 
@@ -627,31 +622,12 @@ class Query
      */
     public function getLastInsID()
     {
-        $id = $this->insertId;
-        if ($this->getOptions('pk_convert_string')) {
-            $id = $this->pkConvertString($id);
-        }
-        return $id;
+        return $this->insertId;
     }
 
 
 
-    /**
-     * @param $id
-     * @return array|string
-     */
-    public function pkConvertString($id) {
-        if (is_array($id)) {
-            array_walk($id, function (&$item, $key) {
-                if ($item instanceof ObjectID) {
-                    $item = $item->__toString();
-                }
-            });
-        } elseif ($id instanceof ObjectID) {
-            $id = $id->__toString();
-        }
-        return $id;
-    }
+
 
     /**
      * @param string $config

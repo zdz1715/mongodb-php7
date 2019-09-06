@@ -104,6 +104,8 @@ class Connection
         'option'            => [],
         // 主键字段
         'pk'                => '_id',
+        // 主键处理(全局) 查找和更新此主键会转化成对应的形式，如：查找 ：_id = 5d71c5415c998d3dc4006832, 更新: _id 会处理成objectID类型
+        'pk_convert_string' => true,
         // 数据库表前缀
         'prefix'            => '',
         // 查询类型
@@ -225,6 +227,24 @@ class Connection
         return $value;
     }
 
+
+    /**
+     * @param $id
+     * @return array|string
+     */
+    public function pkConvertString($id) {
+        if (is_array($id)) {
+            array_walk($id, function (&$item, $key) {
+                if ($item instanceof ObjectID) {
+                    $item = $item->__toString();
+                }
+            });
+        } elseif ($id instanceof ObjectID) {
+            $id = $id->__toString();
+        }
+        return $id;
+    }
+
     /**
      * 生成连接对象
      * @param array $config
@@ -299,14 +319,15 @@ class Connection
     }
 
 
-
-
-
     /**
-     * @return mixed
+     * @return array|mixed|string
      */
     public function getLastInsertID() {
-        return $this->query->getLastInsID();
+        $id = $this->query->getLastInsID();
+        if ($this->allowPkConvertString(false)) {
+           $id = $this->pkConvertString($id);
+        }
+        return $id;
     }
 
     /**
@@ -359,12 +380,24 @@ class Connection
         return $field ? $result[$field] : $result;
     }
 
-    protected function allowPkConvertString($name = 'field') {
-        $field = $this->getQueryOptions($name);
-        if (empty($field)) {
-            return true;
+
+    /**
+     * 是否需要转化主键
+     * @param bool $verifyField  是否要验证主键存在查询字段中
+     * @return bool
+     */
+    protected function allowPkConvertString($verifyField = true) {
+        if ($this->getQueryOptions('pk_convert_string') !== true) {
+            return false;
         }
-        return array_key_exists($this->getConfig('pk'), array_filter($field));
+        if ($verifyField) {
+            $field = $this->getQueryOptions('field');
+            if (empty($field)) {
+                return true;
+            }
+            return array_key_exists($this->getConfig('pk'), array_filter($field));
+        }
+        return true;
     }
 
     /**
@@ -375,10 +408,9 @@ class Connection
         $cursor->setTypeMap($this->getConfig('type_map'));
         $result =  $cursor->toArray();
         $pk = $this->getConfig('pk');
-        if ($this->getQueryOptions('pk_convert_string')
-            && $this->allowPkConvertString()) {
+        if ($this->allowPkConvertString()) {
             foreach ($result as &$item) {
-                $item[$pk] = $this->query->pkConvertString($item[$pk]);
+                $item[$pk] = $this->pkConvertString($item[$pk]);
             }
         }
         return $result;

@@ -20,6 +20,8 @@ $config = [
     'option'            => [],
     // 主键字段
     'pk'                => '_id',
+    // 主键处理(全局) 查找和更新此主键会转化成对应的形式，如：查找 ：_id = 5d71c5415c998d3dc4006832, 更新: _id 会处理成objectID类型
+    'pk_convert_string' => true,
     // 数据库表前缀
     'prefix'            => '',
     // 开启debug 支持: 记录最后一条指令
@@ -39,11 +41,11 @@ $db = Connection::instance($config);
 $collection = 'collection_2';
 
 // 新增链式操作,只针对当前语句 pcs(boolean)  默认 false
-// true；查找和更新主键会转化成对应的形式，如：查找 ：_id = 5d71c5415c998d3dc4006832, 更新: _id 会处理成objectID类型
+// true:查找和更新主键会转化成对应的形式，如：查找 ：_id = 5d71c5415c998d3dc4006832, 更新: _id 会处理成objectID类型
 
 echo '-------------------------------- 插入一条数据 ------------------------------------' . PHP_EOL;
 // 默认返回插入成功的条数, $getLastInsID 为 true, 返回主键
-$insert = $db->collection($collection)->pcs(true)->insert([
+$insert = $db->collection($collection)->pcs(false)->insert([
     'name'  => '小明',
     'age'   => 20
 ], false);
