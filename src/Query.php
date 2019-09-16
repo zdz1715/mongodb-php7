@@ -528,7 +528,7 @@ class Query
         }
         $this->field($field);
         $find = $this->find();
-        return $find[$field] ?? [];
+        return $find[$field] ?? $default;
     }
 
     /**
