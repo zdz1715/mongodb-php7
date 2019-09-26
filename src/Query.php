@@ -235,7 +235,7 @@ class Query
         $this->log('insert', $data);
 
         if ($getLastInsID) {
-            return $this->getLastInsID();
+            return $this->connection->getLastInsertID();
         }
         return $writeResult->getInsertedCount();
     }
