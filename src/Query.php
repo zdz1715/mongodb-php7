@@ -437,6 +437,7 @@ class Query
         $group = $this->getOptions('group');
         $skip = $this->getOptions('skip', 0);
         $count = $this->getOptions('count', false);
+        $sample = $this->getOptions('sample', false);
 
         if (!empty($where)) {
             $pipeline[]['$match'] = $where;
@@ -476,6 +477,12 @@ class Query
             }
         }
 
+        if ($sample > 0) {
+            $pipeline[]['$sample'] = [
+                'size'  => $sample
+            ];
+        }
+
         $query = [
             'aggregate' => $collection,
             'pipeline'  => $pipeline,
@@ -497,6 +504,20 @@ class Query
     public function find() {
         $this->limit(1);
         return $this->select()[0] ?? [];
+    }
+
+
+
+    /**
+     * 随机查找N条
+     * @param $size
+     * @return array|mixed
+     * @throws QueryException
+     * @throws \MongoDB\Driver\Exception\Exception
+     */
+    public function sample($size) {
+        $this->setOption('sample', $size);
+        return $this->select();
     }
 
     /**

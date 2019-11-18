@@ -1,6 +1,7 @@
 <?php
 use \MongodbPhp7\Connection;
 require_once '../src/Connection.php';
+require_once '../src/Query.php';
 
 // 配置文件- 没有填写的则按默认值来
 $config = [
@@ -47,7 +48,7 @@ echo '-------------------------------- 插入一条数据 ----------------------
 // 默认返回插入成功的条数, $getLastInsID 为 true, 返回主键
 $insert = $db->collection($collection)->pcs(false)->insert([
     'name'  => '小明',
-    'age'   => 20
+    'age'   => 15
 ], false);
 echo '插入了'. $insert .'条'. PHP_EOL;
 echo '插入的主键：'. PHP_EOL;
@@ -72,7 +73,7 @@ $insertAll = $db->collection($collection)->insertAll([
     ],
     [
         'name'  => '小明',
-        'age'   => 25
+        'age'   => 12
     ]
 ]);
 
@@ -80,6 +81,7 @@ echo '插入了'. $insertAll .'条'. PHP_EOL;
 echo '插入的主键数组：'. PHP_EOL;
 print_r($db->getLastInsertID());
 echo '执行的语句：'. $db->getLastSql() . PHP_EOL; // 开启debug才会记录
+
 
 //echo '------------------------------ 更新数据 -----------------------------------' . PHP_EOL;
 // where条件没做处理，请参考文档的运算符 https://docs.mongodb.com/manual/reference/operator/query/
@@ -150,6 +152,8 @@ $select = $db->collection($collection)->sort(['age' => $db::SORT_DESC])->value('
 $select = $db->collection($collection)->sort(['age' => $db::SORT_DESC])->column('name,age');
 // 查找条数
 $select = $db->collection($collection)->where(['name' => '小明'])->count();
+// 查找随机几条
+$select = $db->collection($collection)->where(['name' => '小明'])->sample(10);
 
 // 分页
 $select = $db->collection($collection)->where(['name' => '小明'])->sort(['age' => $db::SORT_DESC])->page(1);
