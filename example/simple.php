@@ -86,12 +86,17 @@ echo '执行的语句：'. $db->getLastSql() . PHP_EOL; // 开启debug才会记�
 //echo '------------------------------ 更新数据 -----------------------------------' . PHP_EOL;
 // where条件没做处理，请参考文档的运算符 https://docs.mongodb.com/manual/reference/operator/query/
 // update 更新运算符参考 https://docs.mongodb.com/manual/reference/operator/update/
-// upsert 默认false, 不存在则创建
+// upsert 不存在更新数据则插入。true 插入，false 不插入，默认不插入
 $update = $db->collection($collection)
     ->where(['_id'  => '5d71ee675c998d22b0004b92'])
     ->upsert(false)
     ->limit(1)  //  1 是只更新一条，其他数字都是更新多条，默认更新多条
-    ->update(['set'   => 2, 'age'   => ['$inc', 1]]);
+    ->update([
+        'name'  => '测试',
+        'age'   => [
+            '$inc'  => 1
+        ]
+    ]);
 echo '修改了'. $update .'条'. PHP_EOL;
 echo '执行的语句：'. $db->getLastSql() . PHP_EOL; // 开启debug才会记录
 
